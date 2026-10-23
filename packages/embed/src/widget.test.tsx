@@ -11,7 +11,7 @@
  * a real browser. Run `pnpm dev` in packages/embed and view it. */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, act } from '@testing-library/react';
+import { render, screen, cleanup, act, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import AssistlyChat from './widget';
 import Messages from './ui/Messages';
@@ -196,5 +196,111 @@ describe('AssistlyChat', () => {
         delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
       }
     }
+  });
+
+  it('renders three small dots while the assistant is thinking', () => {
+    const scrollDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView',
+    );
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    try {
+      const { container } = render(
+        <Messages
+          chatbotName="Demo Chatbot"
+          messages={[
+            {
+              id: 1,
+              chat_session_id: 1,
+              content: 'Thinking...',
+              created_at: '2026-01-01T00:00:00.000Z',
+              sender: 'ai',
+            },
+          ]}
+        />,
+      );
+
+      expect(container.querySelectorAll('.assistly-dot')).toHaveLength(3);
+      expect(assistlyCss).toContain('width: 5px');
+      expect(assistlyCss).toContain('height: 5px');
+    } finally {
+      if (scrollDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', scrollDescriptor);
+      } else {
+        delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+      }
+    }
+  });
+
+  it('uses the issued capability for transcript retrieval and message submission', async () => {
+    const capability = 'a'.repeat(43);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const jsonResponse = (value: unknown) =>
+        new Response(JSON.stringify(value), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+      if (url.endsWith('/api/chatbots/42')) {
+        return jsonResponse({ name: 'Demo Chatbot' });
+      }
+      if (url.endsWith('/api/start-chat')) {
+        return jsonResponse({ chat_session_id: 21, capability });
+      }
+      if (url.endsWith('/api/chat-sessions/21/messages')) {
+        return jsonResponse([]);
+      }
+      if (url.endsWith('/api/send-message')) {
+        return jsonResponse({ id: 31, content: 'Assistant reply' });
+      }
+      throw new Error(`Unexpected request: ${url}; ${String(init?.method)}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<AssistlyChat chatbotId={42} origin="https://example.com" />);
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Name'), {
+      target: { value: 'Guest' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Email'), {
+      target: { value: 'guest@example.com' },
+    });
+    const startButton = screen.getByRole('button', { name: 'Start chatting' });
+    await waitFor(() => expect((startButton as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(startButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://example.com/api/chat-sessions/21/messages',
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer ' + capability },
+        }),
+      );
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Write a message…'), {
+      target: { value: 'Please help' },
+    });
+    const sendButton = screen.getByLabelText('Send message');
+    await waitFor(() => expect((sendButton as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(sendButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://example.com/api/send-message',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer ' + capability,
+          }),
+        }),
+      );
+    });
   });
 });

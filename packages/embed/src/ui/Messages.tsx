@@ -58,7 +58,7 @@ function Messages({
       {messages.map((message) => {
         const isSender = message.sender !== "user";
         const isThinking = message.content === "" || message.content === "Thinking...";
-        const showMeta = hoveredId === message.id || isReviewPage;
+        const showMeta = !isThinking && (hoveredId === message.id || isReviewPage);
 
         return (
           <div
@@ -174,7 +174,6 @@ function Messages({
               >
                 {isThinking ? (
                   <div className="assistly-thinking" role="status" aria-label="Assistant is thinking">
-                    <span className="assistly-dot" />
                     <span className="assistly-dot" />
                     <span className="assistly-dot" />
                     <span className="assistly-dot" />

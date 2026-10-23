@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { BotMessageSquare, PencilLine, SearchIcon, Users, X, Menu } from 'lucide-react'
+import { BarChart3, BotMessageSquare, PencilLine, SearchIcon, Users, X, Menu } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 type Role = 'owner' | 'editor' | 'viewer' | null
@@ -29,6 +29,14 @@ const navItems = [
     label: 'View',
     sub: 'Chat History',
     id: 'review',
+    ownerOnly: false,
+  },
+  {
+    href: '/analytics',
+    icon: BarChart3,
+    label: 'Analytics',
+    sub: 'Message totals',
+    id: 'analytics',
     ownerOnly: false,
   },
   {

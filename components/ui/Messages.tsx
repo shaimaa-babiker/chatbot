@@ -8,7 +8,7 @@ import Avatar from "./Avatar";
 import { UserCircle } from "lucide-react";
 import Image from "next/image";
 import React, { useEffect, useRef, useState } from "react";
-import { AiBubble, UserBubble, FourDotWave } from "./ChatMotion";
+import { AiBubble, UserBubble, ThreeDotWave } from "./ChatMotion";
 
 /* -------------------------------------------------------------------------- */
 /*  Small helpers                                                              */
@@ -106,7 +106,7 @@ function Messages({ messages, chatbotName, logoUrl, isReviewPage: isReviewPagePr
         const isSender = message.sender !== "user";
         const isThinking = message.content === "" || message.content === "Thinking...";
         const isFresh = index === messages.length - 1;
-        const showMeta = hoveredId === message.id || isReviewPage;
+        const showMeta = !isThinking && (hoveredId === message.id || isReviewPage);
 
         return (
           <div
@@ -162,7 +162,7 @@ function Messages({ messages, chatbotName, logoUrl, isReviewPage: isReviewPagePr
               >
                 {isThinking ? (
                   <div className="flex items-center gap-3 py-1" style={{ color: "#1e1e1e" }}>
-                    <FourDotWave />
+                    <ThreeDotWave />
                     <span className="font-mono text-[10px] uppercase tracking-[0.25em] opacity-70">
                       Thinking...
                     </span>

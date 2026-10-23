@@ -27,6 +27,7 @@ function ChatbotClient({ id, chatbotName }: { id: string, chatbotName: string })
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [chatId, setChatId] = useState(0);
+  const [sessionCapability, setSessionCapability] = useState('');
   const [loading, setLoading] = useState(false);
   const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(true);
@@ -54,9 +55,11 @@ function ChatbotClient({ id, chatbotName }: { id: string, chatbotName: string })
   });
 
   useEffect(() => {
-    if (!chatId) return
+    if (!chatId || !sessionCapability) return
     let cancelled = false
-    fetch(`/api/chat-sessions/${chatId}/messages`)
+    fetch(`/api/chat-sessions/${chatId}/messages`, {
+      headers: { Authorization: "Bearer " + sessionCapability },
+    })
       .then(async response => {
         const result = await response.json()
         if (!response.ok) throw new Error(result.error ?? 'Failed to load messages')
@@ -67,16 +70,17 @@ function ChatbotClient({ id, chatbotName }: { id: string, chatbotName: string })
       })
       .catch(error => console.error('Failed to load chat messages:', error))
     return () => { cancelled = true }
-  }, [chatId])
+  }, [chatId, sessionCapability])
 
   async function onOnboardingSubmit(values: OnboardingValues) {
     setOnboardingError(null);
     setLoading(true);
     try {
-      const newChatId = await startNewChat(values.name, values.email, Number(id));
+      const startedChat = await startNewChat(values.name, values.email, Number(id));
       setName(values.name);
       setEmail(values.email);
-      setChatId(newChatId);
+      setChatId(startedChat.chatSessionId);
+      setSessionCapability(startedChat.capability);
       setShowOnboarding(false);
     } catch (error) {
       console.error('Error starting chat:', error);
@@ -116,7 +120,10 @@ function ChatbotClient({ id, chatbotName }: { id: string, chatbotName: string })
     try {
       const response = await fetch('/api/send-message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: "Bearer " + sessionCapability,
+        },
         body: JSON.stringify({
           name: name,
           chat_session_id: chatId,
@@ -127,17 +134,25 @@ function ChatbotClient({ id, chatbotName }: { id: string, chatbotName: string })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? 'Failed to send message')
+      const responseShownAt = new Date().toISOString();
       setMessage((prevMessages) =>
         prevMessages.map((msg) =>
-          msg.id === loadingMessage.id ? { ...msg, content: result.content, id: result.id } : msg
+          msg.id === loadingMessage.id
+            ? { ...msg, content: result.content, id: result.id, created_at: responseShownAt }
+            : msg
         )
       );
     } catch (error) {
       console.error('Error Sending Message:', error);
+      const errorShownAt = new Date().toISOString();
       setMessage((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === loadingMessage.id
-            ? { ...msg, content: 'I could not send your message just now. Please try again.' }
+            ? {
+                ...msg,
+                content: 'I could not send your message just now. Please try again.',
+                created_at: errorShownAt,
+              }
             : msg
         )
       );

@@ -4,7 +4,7 @@
  * Re-usable Google-inspired motion primitives for the chat surface.
  *
  * 1. <FluidAura />     — full-bleed Gemini-style gradient mesh + SVG turbulence.
- * 2. <FourDotWave />   — 4 colored dots bouncing in a wave.
+ * 2. <ThreeDotWave />  — 3 colored dots bouncing in a wave.
  * 3. <AiBubble />      — springy entrance + slow-shifting gradient background.
  *
  * All animations are pure CSS; no external libraries.
@@ -99,15 +99,14 @@ export function FluidAura({ className = "" }: { className?: string }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* 2. Four-Dot Voice Wave                                                     */
+/* 2. Three-Dot Voice Wave                                                   */
 /* -------------------------------------------------------------------------- */
 
-export function FourDotWave({ className = "" }: { className?: string }) {
+export function ThreeDotWave({ className = "" }: { className?: string }) {
   const dots = [
     { color: "#8a2a2a", delay: "0s" },   // oxblood
     { color: "#c89a5b", delay: "0.12s" }, // brass
     { color: "#5a6b3b", delay: "0.24s" }, // moss
-    { color: "#2c5b5e", delay: "0.36s" }, // teal
   ];
   return (
     <span className={`inline-flex items-center gap-1.5 ${className}`} aria-label="Loading">
@@ -121,15 +120,15 @@ export function FourDotWave({ className = "" }: { className?: string }) {
       <style>{`
         .dot-wave {
           display: inline-block;
-          width: 7px;
-          height: 7px;
+          width: 5px;
+          height: 5px;
           border-radius: 9999px;
           will-change: transform;
           animation: dotBounce 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
         }
         @keyframes dotBounce {
           0%, 60%, 100% { transform: translate3d(0, 0, 0); }
-          30%           { transform: translate3d(0, -6px, 0); }
+          30%           { transform: translate3d(0, -3px, 0); }
         }
       `}</style>
     </span>

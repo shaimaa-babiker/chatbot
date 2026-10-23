@@ -1,5 +1,10 @@
 import sql from "@/lib/db"
 import { getChatbot, getSessionDetails } from "@/lib/chatData"
+import { classifyEnquiry } from "@/lib/enquiryClassification"
+import {
+  getGuestSessionCapability,
+  hasGuestSessionCapability,
+} from "@/lib/guestSessionCapability"
 import { callGroqChat, callGroqChatStream } from "@/lib/groqPool"
 import { sendAdminNewMessageDigest } from "@/lib/email"
 import { type NextRequest } from "next/server"
@@ -163,17 +168,30 @@ export async function POST(req: NextRequest) {
     return jsonError("stream must be a boolean", 400)
   }
 
-  // Pre-flight: verify the chatbot + session ownership.
+  let isAuthorized = false
+  try {
+    isAuthorized = await hasGuestSessionCapability(
+      chat_session_id,
+      getGuestSessionCapability(req),
+    )
+  } catch (error) {
+    console.error("[send-message] capability verification failed", error)
+    return jsonError("Failed to verify chat session", 500)
+  }
+  if (!isAuthorized) {
+    return jsonError("Chat session not found", 404)
+  }
+
+  // Resolve chatbot ownership from the authorized session, not the request body.
   let chatbot, session
   try {
-    chatbot = await getChatbot(chabot_id)
-    if (!chatbot) return jsonError("Chatbot not found", 404)
-
     session = await getSessionDetails(chat_session_id)
     if (!session) return jsonError("Chat session not found", 404)
     if (session.chatbot_id !== chabot_id) {
-      return jsonError("Chat session does not belong to this chatbot", 403)
+      return jsonError("Chat session not found", 404)
     }
+    chatbot = await getChatbot(session.chatbot_id)
+    if (!chatbot) return jsonError("Chat session not found", 404)
   } catch (error) {
     console.error("Error verifying chat context:", error)
     return jsonError("Failed to verify chat context", 500)
@@ -203,14 +221,48 @@ ${systemPrompt || "(no characteristics provided)"}`,
   ]
 
   // Persist the user message first so it's saved even if the AI call fails.
+  let enquiryCategory: string | null = null
+  let userMessageId: number | null = null
   try {
-    await sql`
-      INSERT INTO messages (chat_session_id, content, created_at, sender)
-      VALUES (${chat_session_id}, ${content}, ${created_at}, 'user')
+    const insertedMessage = await sql`
+      INSERT INTO messages (chat_session_id, content, created_at, sender, enquiry_category)
+      VALUES (${chat_session_id}, ${content}, ${created_at}, 'user', NULL)
+      RETURNING id
     `
+    if (!insertedMessage[0]?.id) {
+      throw new Error("User message insert did not return an id")
+    }
+    userMessageId = Number(insertedMessage[0].id)
   } catch (error) {
     console.error("Error persisting user message:", error)
     return jsonError("Failed to persist user message", 500)
+  }
+
+  try {
+    const knownCategoryRows = await sql`
+      SELECT DISTINCT m.enquiry_category
+      FROM messages m
+      JOIN chat_sessions s ON s.id = m.chat_session_id
+      WHERE s.chatbot_id = ${session.chatbot_id}
+        AND m.enquiry_category IS NOT NULL
+      ORDER BY m.enquiry_category
+      LIMIT 50
+    `
+    enquiryCategory = await classifyEnquiry({
+      knowledge: systemPrompt,
+      message: content,
+      knownCategories: knownCategoryRows.map((row) =>
+        String(row.enquiry_category),
+      ),
+    })
+    await sql`
+      UPDATE messages
+      SET enquiry_category = ${enquiryCategory}
+      WHERE id = ${userMessageId}
+    `
+  } catch (error) {
+    console.error("[send-message] failed to classify enquiry", error)
+    enquiryCategory = null
   }
 
   // ---------- Streaming response path ----------
@@ -239,8 +291,8 @@ ${systemPrompt || "(no characteristics provided)"}`,
         // Persist the AI response and emit a `done` event with the row id.
         try {
           const aiMessage = await sql`
-            INSERT INTO messages (chat_session_id, content, created_at, sender)
-            VALUES (${chat_session_id}, ${accumulated}, NOW(), 'ai')
+            INSERT INTO messages (chat_session_id, content, created_at, sender, enquiry_category)
+            VALUES (${chat_session_id}, ${accumulated}, NOW(), 'ai', ${enquiryCategory})
             RETURNING id
           `
           const aiMessageId = aiMessage[0]?.id
@@ -255,7 +307,7 @@ ${systemPrompt || "(no characteristics provided)"}`,
           // wait on email delivery; errors are logged inside the helper.
           void maybeNotifyAdmin({
             chatSessionId: chat_session_id,
-            chatbotId: chabot_id,
+            chatbotId: session.chatbot_id,
             baseUrl: appBaseUrl(req),
           })
         } catch (error) {
@@ -286,14 +338,14 @@ ${systemPrompt || "(no characteristics provided)"}`,
       temperature: 0.7,
     })
     const aiMessage = await sql`
-      INSERT INTO messages (chat_session_id, content, created_at, sender)
-      VALUES (${chat_session_id}, ${aiResponse}, NOW(), 'ai')
+      INSERT INTO messages (chat_session_id, content, created_at, sender, enquiry_category)
+      VALUES (${chat_session_id}, ${aiResponse}, NOW(), 'ai', ${enquiryCategory})
       RETURNING id
     `
 
     void maybeNotifyAdmin({
       chatSessionId: chat_session_id,
-      chatbotId: chabot_id,
+      chatbotId: session.chatbot_id,
       baseUrl: appBaseUrl(req),
     })
 

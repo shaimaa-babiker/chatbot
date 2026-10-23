@@ -1,4 +1,5 @@
 import sql from "@/lib/db";
+import { createGuestSessionCapability } from "@/lib/guestSessionCapability";
 import { type NextRequest, NextResponse } from 'next/server';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const capability = createGuestSessionCapability();
     const rows = await sql`
       WITH valid_chatbot AS (
         SELECT id FROM chatbots WHERE id = ${chatbot_id}
@@ -33,8 +35,19 @@ export async function POST(req: NextRequest) {
         RETURNING id
       ),
       new_session AS (
-        INSERT INTO chat_sessions (chatbot_id, guest_id, created_at)
-        SELECT valid_chatbot.id, new_guest.id, NOW()
+        INSERT INTO chat_sessions (
+          chatbot_id,
+          guest_id,
+          created_at,
+          guest_capability_hash,
+          guest_capability_expires_at
+        )
+        SELECT
+          valid_chatbot.id,
+          new_guest.id,
+          NOW(),
+          ${capability.hash},
+          ${capability.expiresAt}
         FROM valid_chatbot CROSS JOIN new_guest
         RETURNING id
       ),
@@ -49,7 +62,13 @@ export async function POST(req: NextRequest) {
     if (!rows.length) {
       return NextResponse.json({ error: 'Chatbot not found' }, { status: 404 });
     }
-    return NextResponse.json({ chat_session_id: rows[0].chat_session_id });
+    return NextResponse.json(
+      {
+        chat_session_id: rows[0].chat_session_id,
+        capability: capability.token,
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     console.error('[/api/start-chat] error', error);
     return NextResponse.json(

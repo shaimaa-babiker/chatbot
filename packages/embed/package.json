@@ -1,6 +1,6 @@
 {
   "name": "@shaimaababiker/embed",
-  "version": "0.2.7",
+  "version": "0.2.9",
   "description": "Embeddable Assistly chatbot as a React component. Drop-in replacement for the iframe-based embed.",
   "type": "module",
   "main": "./dist/index.js",

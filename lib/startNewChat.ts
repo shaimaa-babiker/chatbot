@@ -1,8 +1,13 @@
+type StartedChat = {
+  chatSessionId: number;
+  capability: string;
+};
+
 async function startNewChat(
   guestName: string,
   guestEmail: string,
   chatbotId: number,
-): Promise<number> {
+): Promise<StartedChat> {
   const response = await fetch('/api/start-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -21,10 +26,16 @@ async function startNewChat(
   }
 
   const data = await response.json();
-  if (typeof data?.chat_session_id !== 'number') {
+  if (
+    typeof data?.chat_session_id !== 'number' ||
+    typeof data?.capability !== 'string'
+  ) {
     throw new Error('Server returned an invalid response');
   }
-  return data.chat_session_id;
+  return {
+    chatSessionId: data.chat_session_id,
+    capability: data.capability,
+  };
 }
 
 export default startNewChat;

@@ -5,7 +5,7 @@ async function startNewChat(
   guestName: string,
   guestEmail: string,
   chatbotId: number,
-): Promise<number> {
+): Promise<{ chatSessionId: number; capability: string }> {
   const baseUrl = getApiBaseUrl(origin);
   const response = await fetch(`${baseUrl}/api/start-chat`, {
     method: 'POST',
@@ -24,11 +24,20 @@ async function startNewChat(
     throw new Error(message);
   }
 
-  const data = await readApiJson<{ chat_session_id?: unknown }>(response);
-  if (typeof data?.chat_session_id !== 'number') {
+  const data = await readApiJson<{
+    chat_session_id?: unknown;
+    capability?: unknown;
+  }>(response);
+  if (
+    typeof data?.chat_session_id !== 'number' ||
+    typeof data?.capability !== 'string'
+  ) {
     throw new Error('Server returned an invalid response');
   }
-  return data.chat_session_id;
+  return {
+    chatSessionId: data.chat_session_id,
+    capability: data.capability,
+  };
 }
 
 export default startNewChat;
