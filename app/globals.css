@@ -1,0 +1,269 @@
+@import "tailwindcss";
+@plugin "daisyui";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-night-0: var(--night-0);
+  --color-night-1: var(--night-1);
+  --color-night-2: var(--night-2);
+  --color-night-3: var(--night-3);
+  --color-cream: var(--cream);
+  --color-cream-2: var(--cream-2);
+  --color-ink: var(--ink);
+  --color-brass: var(--brass);
+  --color-brass-2: var(--brass-2);
+  --color-oxblood: var(--oxblood);
+  --color-teal: var(--teal);
+  --color-moss: var(--moss);
+  --color-hairline: var(--hairline);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Assistly — "museum at night" chat theme                                   */
+/*  Warm, editorial dark palette. No purple-on-white, no neon AI clichés.    */
+/* -------------------------------------------------------------------------- */
+
+@layer base {
+  :root {
+    /* warm dark canvas — lifted so the page reads as "warm dim" not pitch black */
+    --night-0: #15110d;   /* deepest background — warmer, lifted */
+    --night-1: #1f1813;   /* surface */
+    --night-2: #2a221c;   /* raised surface */
+    --night-3: #382e25;   /* border / hairline */
+    --cream:   #fbf3df;   /* paper / AI bubble — slightly brighter */
+    --cream-2: #efe2c2;   /* paper shadow */
+    --ink:     #1a140f;   /* user bubble */
+    --brass:   #e0b070;   /* primary accent — brighter, warmer */
+    --brass-2: #ffd28a;   /* secondary highlight */
+    --oxblood: #b04a3e;   /* secondary accent — a touch brighter */
+    --teal:    #3d7a7d;   /* tertiary accent */
+    --moss:    #7a8a4f;   /* subtle accent */
+    --muted:   rgba(251, 243, 223, 0.72);
+    --muted-2: rgba(251, 243, 223, 0.45);
+    --hairline: rgba(251, 243, 223, 0.12);
+  }
+
+  html, body {
+    font-family: var(--font-body), system-ui, sans-serif;
+    font-feature-settings: "ss01", "ss02", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--brass);
+    /* color: var(--night-0); */
+  }
+}
+
+/* Custom scrollbar — slim, warm */
+.chat-scroll::-webkit-scrollbar { width: 8px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 999px;
+  transition: background 200ms ease;
+}
+.chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(224, 176, 112, 0.55); }
+
+/* Editorial display utility */
+.font-display { font-family: var(--font-display), Georgia, serif; }
+.font-mono    { font-family: var(--font-mono), ui-monospace, monospace; }
+
+/* Soft focus ring used by the composer */
+.composer-focus:focus-within {
+  box-shadow:
+    0 0 0 1px rgba(224, 176, 112, 0.75),
+    0 0 28px -4px rgba(224, 176, 112, 0.7),
+    0 0 70px -22px rgba(255, 210, 138, 0.6);
+  border-color: transparent;
+}
+
+/* Breathing dot — used for "online" status */
+@keyframes breathe {
+  0%, 100% { transform: scale(1);   opacity: 0.9; box-shadow: 0 0 0 0 rgba(184, 217, 122, 0.7); }
+  50%      { transform: scale(1.18); opacity: 1;   box-shadow: 0 0 0 8px rgba(184, 217, 122, 0);  }
+}
+.breath-dot { animation: breathe 2.6s ease-in-out infinite; }
+
+/* Slow drift used on the radial-aura layers */
+@keyframes drift-a {
+  0%   { transform: translate3d(-6%, -4%, 0) scale(1.05); }
+  50%  { transform: translate3d(8%, 5%, 0)  scale(1.18); }
+  100% { transform: translate3d(-6%, -4%, 0) scale(1.05); }
+}
+@keyframes drift-b {
+  0%   { transform: translate3d(7%, 4%, 0)  scale(1.12); }
+  50%  { transform: translate3d(-7%, -5%, 0) scale(1.22); }
+  100% { transform: translate3d(7%, 4%, 0)  scale(1.12); }
+}
+
+/* Entrance ring that hugs the newest message and fades */
+@keyframes ringOut {
+  0%   { opacity: 0.9; transform: scale(0.96); }
+  100% { opacity: 0;   transform: scale(1.10); }
+}
+.ring-out {
+  animation: ringOut 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Tiny grain overlay — gives surfaces a film-like texture */
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.96  0 0 0 0 0.92  0 0 0 0 0.85  0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.4;
+  mix-blend-mode: overlay;
+  border-radius: inherit;
+}
+
+/* Cursor-pulse used inside the AI bubble while thinking */
+@keyframes cursorBlink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.cursor-blink::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--brass-2);
+  animation: cursorBlink 1s steps(2, end) infinite;
+}
+
+/* Send-button morph: arrow → ring → check */
+@keyframes spin { to { transform: rotate(360deg); } }
+.send-spinner { animation: spin 0.9s linear infinite; }
+
+/* Soft entry for whole dialog content */
+@keyframes riseFade {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.rise-fade { animation: riseFade 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-fade-d1 { animation-delay: 120ms; }
+.rise-fade-d2 { animation-delay: 240ms; }
+.rise-fade-d3 { animation-delay: 360ms; }
+

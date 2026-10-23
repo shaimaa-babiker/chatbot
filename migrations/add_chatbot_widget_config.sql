@@ -1,0 +1,2 @@
+ALTER TABLE chatbots
+ADD COLUMN IF NOT EXISTS widget_config JSONB NOT NULL DEFAULT '{}'::jsonb;

@@ -1,0 +1,55 @@
+{
+  "name": "@shaimaababiker/embed",
+  "version": "0.2.7",
+  "description": "Embeddable Assistly chatbot as a React component. Drop-in replacement for the iframe-based embed.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@dicebear/collection": "^9.3.1",
+    "@dicebear/core": "^9.3.1",
+    "@hookform/resolvers": "^5.2.2",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.570.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "react-hook-form": "^7.71.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.4.1",
+    "zod": "^4.3.6"
+  },
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "gsap": "^3.15.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}

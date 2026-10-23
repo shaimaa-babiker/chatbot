@@ -1,0 +1,434 @@
+'use client';
+
+import { use, useEffect, useState } from "react";
+import { GetChatbotByIdResponse, Message, MessagesbyChatSessionIdResponse, MessagesbyChatSessionIdResponseVariables } from "@/types/types";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import startNewChat from "@/lib/startNewChat";
+import Avatar from "@/components/ui/Avatar";
+import { useQuery } from "@apollo/client";
+import { GET_CHATBOTS_by_ID, GET_MESSEGES_BY_CHAT_SESSION_ID } from "@/qraphql/queries/queries";
+import Messages from "@/components/ui/Messages";
+import {z} from "zod";
+import {  useForm } from "react-hook-form";
+import { zodResolver } from '@hookform/resolvers/zod';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage,Form } from "@/components/ui/form";
+import { ArrowUpRight, Sparkles, Lock } from "lucide-react";
+
+
+const formSchema = z.object({
+message:z.string().min(3, 'Your Message is too short!'),
+});
+
+const intakeSchema = z.object({
+  name: z.string().min(2, "Please enter your name"),
+  email: z.string().email("Please enter a valid email"),
+});
+
+// Minimal SSE parser. Yields `{ event, data }` for each event in the stream.
+async function* parseSSE(
+  response: Response,
+): AsyncGenerator<{ event: string; data: string }, void, void> {
+  if (!response.body) return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let sep;
+      // Each SSE event ends with a blank line (\n\n).
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
+        const raw = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        let event = "message";
+        const dataLines: string[] = [];
+        for (const line of raw.split("\n")) {
+          if (line.startsWith("event:")) event = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+        }
+        if (dataLines.length) {
+          yield { event, data: dataLines.join("\n") };
+        }
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch { /* already released */ }
+  }
+}
+
+function ChatbotPage(props: { params: Promise<{ id: string }> })
+{
+  const params = use(props.params)
+  const { id } = params
+  const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [chatId,setChatId]=useState(0);
+  const [loading,setLoading]=useState(false);
+  const[message,setMessage]=useState<Message[]>([]);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver:zodResolver(formSchema),
+    defaultValues:{
+      message:''
+    }
+  })
+
+  const intake = useForm<z.infer<typeof intakeSchema>>({
+    resolver: zodResolver(intakeSchema),
+    defaultValues: { name: "", email: "" },
+  });
+
+  const  handleInformationSubmit = async (values: z.infer<typeof intakeSchema>) => {
+    setLoading(true);
+    setName(values.name);
+    setEmail(values.email);
+    const chatId= await startNewChat(values.name, values.email, Number(id))
+    setChatId(chatId);
+    setLoading(false);
+  }
+
+  const {data:chatBotData} = useQuery <GetChatbotByIdResponse>(
+    GET_CHATBOTS_by_ID,
+    {
+    variables:{
+     id
+    }}
+  )
+
+  const {loading:loadingQuery,error,data}=
+  useQuery<MessagesbyChatSessionIdResponse,MessagesbyChatSessionIdResponseVariables>
+  (
+GET_MESSEGES_BY_CHAT_SESSION_ID,
+{
+  variables:{
+    chat_session_id:chatId
+
+  },
+  skip:!chatId
+} )
+
+
+useEffect(() => {
+  if (data) {
+    const chatSession = data.chat_sessions as any
+    setMessage(chatSession.messages)
+  }
+}, [data])
+
+async function onsubmit(values: z.infer<typeof formSchema>) {
+setLoading(true);
+const {message:FormMessage} =values;
+
+const message = FormMessage;
+form.reset();
+
+if(!name || !email){
+  intake.setFocus("name");
+  setLoading(false);
+  return;
+}
+
+//handle the message
+if(!message.trim()){
+  return;
+}
+
+//optimistically update the UI with the user message
+
+const userMessage:Message={
+  id:Date.now(),
+  content:message,
+  chat_session_id:chatId,
+  sender:'user',
+  created_at:new Date().toISOString(),
+};
+
+const loadingMessage:Message={
+  id:Date.now() + 1,
+  content:'',
+  chat_session_id:chatId,
+  created_at:new Date().toISOString(),
+  sender:'ai',
+};
+setMessage((prevMessages)=>[...prevMessages,userMessage,loadingMessage]);
+
+try {
+  const response = await fetch('/api/send-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      chat_session_id: chatId,
+      chabot_id: Number(id),
+      content: message,
+      created_at: new Date().toISOString(),
+      stream: true,
+    }),
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(`Stream request failed: ${response.status}`);
+  }
+
+  // Stream tokens into the optimistic AI bubble.
+  for await (const evt of parseSSE(response)) {
+    try {
+      const payload = JSON.parse(evt.data);
+      if (evt.event === 'token' && typeof payload.delta === 'string') {
+        setMessage((prev) =>
+          prev.map((m) =>
+            m.id === loadingMessage.id
+              ? { ...m, content: m.content + payload.delta }
+              : m,
+          ),
+        );
+      } else if (evt.event === 'done') {
+        setMessage((prev) =>
+          prev.map((m) =>
+            m.id === loadingMessage.id
+              ? { ...m, id: payload.id ?? m.id, content: payload.content ?? m.content }
+              : m,
+          ),
+        );
+      } else if (evt.event === 'error') {
+        setMessage((prev) =>
+          prev.map((m) =>
+            m.id === loadingMessage.id
+              ? { ...m, content: payload.message || m.content }
+              : m,
+          ),
+        );
+      }
+    } catch {
+      // Ignore malformed SSE payload and keep the stream open.
+    }
+  }
+} catch (error) {
+  console.error('Error Sending Message:', error);
+  setMessage((prev) =>
+    prev.map((m) =>
+      m.id === loadingMessage.id
+        ? { ...m, content: 'I apologize, but something went wrong. Please try again.' }
+        : m,
+    ),
+  );
+} finally {
+  setLoading(false);
+}
+
+}
+
+  // ---------- Intake / pre-chat hero ----------
+  if (chatId === 0) {
+    const chatbotName = chatBotData?.chatbots.name ?? "your AI assistant";
+    return (
+      <div className="relative min-h-screen w-full overflow-hidden bg-white text-neutral-900">
+        {/* Background atmosphere: soft neutral mesh + noise */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-40 -left-40 h-[600px] w-[600px] rounded-full bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.06),transparent_60%)] blur-3xl" />
+          <div className="absolute -bottom-40 -right-40 h-[600px] w-[600px] rounded-full bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.05),transparent_60%)] blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.04] [background-image:radial-gradient(circle_at_1px_1px,black_1px,transparent_0)] [background-size:24px_24px]" />
+        </div>
+
+        {/* Top bar */}
+        <div className="relative z-10 flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-neutral-900 shadow-[0_0_24px_rgba(0,0,0,0.15)]" />
+            <div className="flex flex-col leading-tight">
+              <span className="display-font text-sm font-extrabold tracking-tighter">ASSISTLY</span>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">Concierge v3.0</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+            <Lock className="h-3 w-3" />
+            <span>End-to-end encrypted</span>
+          </div>
+        </div>
+
+        {/* Centered hero card */}
+        <div className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] max-w-5xl flex-col items-center justify-center px-6">
+          <div className="grid w-full grid-cols-1 gap-10 md:grid-cols-[1.1fr_1fr] md:items-center">
+            {/* Left: copy */}
+            <div className="space-y-6 animate-in fade-in slide-in-from-left-6 duration-700">
+              <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-neutral-600 shadow-sm">
+                <Sparkles className="h-3 w-3" />
+                <span>Now greeting {chatbotName}</span>
+              </div>
+              <h1 className="display-font text-5xl font-extrabold leading-[0.95] tracking-tighter md:text-7xl">
+                A front desk<br />
+                that <span className="italic">never sleeps.</span>
+              </h1>
+              <p className="max-w-md text-base leading-relaxed text-neutral-600">
+                {chatbotName} is ready to answer your questions. Tell us a little
+                about yourself and we'll open the line.
+              </p>
+              <div className="flex items-center gap-3 text-xs text-neutral-500">
+                <div className="flex -space-x-2">
+                  <div className="h-7 w-7 rounded-full border border-white bg-neutral-300" />
+                  <div className="h-7 w-7 rounded-full border border-white bg-neutral-400" />
+                  <div className="h-7 w-7 rounded-full border border-white bg-neutral-500" />
+                </div>
+                <span>1,204 conversations started today</span>
+              </div>
+            </div>
+
+            {/* Right: form card */}
+            <div className="animate-in fade-in slide-in-from-right-6 duration-700 delay-150">
+              <div className="relative rounded-3xl border border-neutral-200 bg-white p-8 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.12)]">
+                <div className="absolute -top-px left-8 right-8 h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent" />
+                <div className="mb-6 flex items-center gap-3">
+                  <Avatar seed={chatbotName} className="h-10 w-10 rounded-full border border-neutral-200" />
+                  <div className="flex flex-col leading-tight">
+                    <span className="display-font text-sm font-bold tracking-tight">{chatbotName}</span>
+                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-neutral-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-neutral-700" />
+                      </span>
+                      Online now
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-800">
+                  <p className="leading-relaxed">
+                    <span className="font-semibold text-neutral-900">{chatbotName}:</span>{" "}
+                    Hi there 👋 — I'm here to help. Could you share your{" "}
+                    <span className="font-semibold text-neutral-900">name</span> and{" "}
+                    <span className="font-semibold text-neutral-900">email</span> to
+                    get started?
+                  </p>
+                </div>
+
+                <Form {...intake}>
+                  <form
+                    onSubmit={intake.handleSubmit(handleInformationSubmit)}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={intake.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[10px] uppercase tracking-[0.25em] text-neutral-500">Name</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              autoFocus
+                              placeholder="John Doe"
+                              className="h-12 rounded-xl border-neutral-200 bg-white px-4 text-neutral-900 placeholder:text-neutral-400 focus-visible:border-neutral-900 focus-visible:ring-neutral-900/20 transition-all"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-[11px] text-neutral-700" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={intake.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[10px] uppercase tracking-[0.25em] text-neutral-500">Email</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type="email"
+                              placeholder="john@appleseed.com"
+                              className="h-12 rounded-xl border-neutral-200 bg-white px-4 text-neutral-900 placeholder:text-neutral-400 focus-visible:border-neutral-900 focus-visible:ring-neutral-900/20 transition-all"
+                            />
+                          </FormControl>
+                          <FormMessage className="text-[11px] text-neutral-700" />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="group h-12 w-full rounded-xl bg-neutral-900 text-sm font-bold uppercase tracking-wider text-white shadow-[0_10px_30px_-10px_rgba(0,0,0,0.4)] transition-all hover:bg-neutral-800 disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                          Connecting
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          Start Conversation
+                          <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        </span>
+                      )}
+                    </Button>
+
+                    <p className="text-center text-[10px] uppercase tracking-[0.2em] text-neutral-400">
+                      By continuing you agree to our terms
+                    </p>
+                  </form>
+                </Form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Active chat view ----------
+  return (
+    <div className="relative w-full min-h-screen flex bg-neutral-100">
+      <div className="flex flex-col w-full max-w-3xl mx-auto bg-white md:rounded-t-3xl shadow-2xl md:mt-10 border border-neutral-200">
+        <div className="pb-4 border-b border-neutral-200 sticky top-0 z-50 bg-neutral-900 py-5 px-10 text-white md:rounded-t-3xl flex items-center space-x-4">
+          <Avatar
+            seed={chatBotData?.chatbots.name ?? 'default-seed'}
+            className="w-12 h-12 bg-white rounded-full border-2 border-white"
+          />
+          <div>
+            <h1 className="truncate text-lg font-semibold">{chatBotData?.chatbots.name}</h1>
+            <p className="text-sm text-white/70">
+              Typically replies instantly
+            </p>
+          </div>
+        </div>
+
+        <Messages messages={message} chatbotName={chatBotData?.chatbots.name! || ''} />
+
+        <Form {...form}>
+          <form
+            className="flex items-start sticky bottom-0 space-x-4 bg-white p-4 border-t border-neutral-200"
+            onSubmit={form.handleSubmit(onsubmit)}
+          >
+            <FormField
+              control={form.control}
+              name="message"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel hidden>Message</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Type a message ..."
+                      className="h-12 rounded-xl border-neutral-200 bg-white px-4 text-neutral-900 placeholder:text-neutral-400 focus-visible:border-neutral-900 focus-visible:ring-neutral-900/20"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="submit"
+              className="h-12 rounded-xl bg-neutral-900 text-white hover:bg-neutral-800 cursor-pointer"
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
+            >
+              Send
+            </Button>
+          </form>
+        </Form>
+      </div>
+    </div>
+  );
+}
+
+export default ChatbotPage
