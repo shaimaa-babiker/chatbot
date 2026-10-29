@@ -39,7 +39,7 @@ There is no test suite — `package.json` has no `test` script and no test runne
 - Admin queries filter chatbots by Clerk owner or a matching invited email in SQL rather than fetching all tenants into the browser.
 
 ### Data model
-Types live in `types/types.ts`. The core entities: `Chatbot` → has many `ChatbotCharacteristic` and `ChatSession`; `ChatSession` → has one `Guest` and many `Message`; `Message.sender` is `"ai" | "user"`. Admins are linked to chatbots by `clerk_user_id`. There is no DB-level uniqueness or row-level filtering enforced from the API — admin pages do client-side `chatbot.clerk_user_id === userId` filtering (`app/(admin)/view-chatbots/page.tsx`).
+Types live in `types/types.ts`. The core entities: `Chatbot` → has many `ChatbotCharacteristic`, `ChatbotTag`, and `ChatSession`; `ChatSession` → has one `Guest` and many `Message`; `Message.sender` is `"ai" | "user"`. Each `ChatbotTag` has an admin-written purpose and maps to Product, Service, or Opportunity; `MessageTag` stores the AI-selected configured tags on customer messages. Admins are linked to chatbots by `clerk_user_id`.
 
 ### Chat flow
 1. Guest opens `/chatbot/[id]`, a Radix dialog asks for name + email.
@@ -47,7 +47,8 @@ Types live in `types/types.ts`. The core entities: `Chatbot` → has many `Chatb
 3. Messages are sent to `POST /api/send-message` (`app/api/send-message/route.ts`). That route:
    - Fetches the chatbot's `chatbot_characteristics` and prior messages from the session.
    - Uses the characteristics as the business-specific source of truth, answering when they contain the relevant facts and following their restrictions. Links are shared with visitors but are not fetched or read by the model.
-   - Calls Groq through `lib/groqPool.ts` using model `openai/gpt-oss-120b`, with a 512-token response limit and temperature 0.7.
+   - Applies only the chatbot's admin-configured message tags to customer messages; each tag's configured category determines the Product, Service, or Opportunity filters. Older messages can be re-tagged from Analytics.
+   - Calls Groq through `lib/groqPool.ts` using model `openai/gpt-oss-120b`, with a 500-token response limit and temperature 0.7; the system prompt also instructs the chatbot to keep answers within 500 tokens.
    - Persists the user message and AI response in Neon.
 4. The client (`app/(guest)/chatbot/[id]/page.tsx`) renders messages optimistically with a "Thinking..." placeholder that gets swapped for the real response. Markdown is rendered with `react-markdown` + `remark-gfm` (`components/ui/Messages.tsx`).
 
@@ -62,6 +63,7 @@ Types live in `types/types.ts`. The core entities: `Chatbot` → has many `Chatb
 
 - **Chatbot knowledge and website links**: the model only receives saved chatbot characteristics; it cannot read the linked website pages. Keep the characteristics current and avoid assuming links provide website context.
 - **`DATABASE_URL` is required** for all database-backed pages and API routes. Keep it in an ignored local environment file and set it in deployment environment settings.
+- **Message tags**: apply `migrations/add_chatbot_tags.sql` before using the admin tag editor, message filters, or configured tag assignment.
 - **The `stepzen/` folder contains legacy configuration**; application runtime access uses Neon directly.
 - **`middleware.ts`** uses Clerk middleware. Add intentionally public API routes there, and continue to enforce authentication/ownership in write handlers.
 - **Tenant isolation**: scope admin SQL by `clerk_user_id` or the owner ids authorized for the signed-in user's invited email. Do not expose unfiltered tenant records through public endpoints.

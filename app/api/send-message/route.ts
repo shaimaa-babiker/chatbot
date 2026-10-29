@@ -1,6 +1,6 @@
 import sql from "@/lib/db"
 import { getChatbot, getSessionDetails } from "@/lib/chatData"
-import { classifyEnquiry } from "@/lib/enquiryClassification"
+import { applyConfiguredTagsToMessage } from "@/lib/messageTagging"
 import {
   getGuestSessionCapability,
   hasGuestSessionCapability,
@@ -212,6 +212,7 @@ export async function POST(req: NextRequest) {
     {
       role: "system" as const,
       content: `You are the assistant for this chatbot, speaking with ${name.trim()}.
+Keep each answer concise and within 500 tokens.
 
 Chatbot characteristics:
 ${systemPrompt || "(no characteristics provided)"}`,
@@ -221,12 +222,11 @@ ${systemPrompt || "(no characteristics provided)"}`,
   ]
 
   // Persist the user message first so it's saved even if the AI call fails.
-  let enquiryCategory: string | null = null
   let userMessageId: number | null = null
   try {
     const insertedMessage = await sql`
-      INSERT INTO messages (chat_session_id, content, created_at, sender, enquiry_category)
-      VALUES (${chat_session_id}, ${content}, ${created_at}, 'user', NULL)
+      INSERT INTO messages (chat_session_id, content, created_at, sender)
+      VALUES (${chat_session_id}, ${content}, ${created_at}, 'user')
       RETURNING id
     `
     if (!insertedMessage[0]?.id) {
@@ -239,30 +239,17 @@ ${systemPrompt || "(no characteristics provided)"}`,
   }
 
   try {
-    const knownCategoryRows = await sql`
-      SELECT DISTINCT m.enquiry_category
-      FROM messages m
-      JOIN chat_sessions s ON s.id = m.chat_session_id
-      WHERE s.chatbot_id = ${session.chatbot_id}
-        AND m.enquiry_category IS NOT NULL
-      ORDER BY m.enquiry_category
-      LIMIT 50
-    `
-    enquiryCategory = await classifyEnquiry({
-      knowledge: systemPrompt,
+    await applyConfiguredTagsToMessage({
+      chatbotId: session.chatbot_id,
+      messageId: userMessageId,
       message: content,
-      knownCategories: knownCategoryRows.map((row) =>
-        String(row.enquiry_category),
-      ),
     })
-    await sql`
-      UPDATE messages
-      SET enquiry_category = ${enquiryCategory}
-      WHERE id = ${userMessageId}
-    `
   } catch (error) {
-    console.error("[send-message] failed to classify enquiry", error)
-    enquiryCategory = null
+    console.error("[send-message] failed to apply configured message tags", {
+      chatbotId: session.chatbot_id,
+      messageId: userMessageId,
+      error,
+    })
   }
 
   // ---------- Streaming response path ----------
@@ -273,7 +260,7 @@ ${systemPrompt || "(no characteristics provided)"}`,
         let accumulated = ""
         try {
           for await (const token of callGroqChatStream(messages, {
-            maxTokens: 512,
+            maxTokens: 500,
             temperature: 0.7,
           })) {
             accumulated += token
@@ -291,8 +278,8 @@ ${systemPrompt || "(no characteristics provided)"}`,
         // Persist the AI response and emit a `done` event with the row id.
         try {
           const aiMessage = await sql`
-            INSERT INTO messages (chat_session_id, content, created_at, sender, enquiry_category)
-            VALUES (${chat_session_id}, ${accumulated}, NOW(), 'ai', ${enquiryCategory})
+            INSERT INTO messages (chat_session_id, content, created_at, sender)
+            VALUES (${chat_session_id}, ${accumulated}, NOW(), 'ai')
             RETURNING id
           `
           const aiMessageId = aiMessage[0]?.id
@@ -334,12 +321,12 @@ ${systemPrompt || "(no characteristics provided)"}`,
   // ---------- Non-streaming fallback path ----------
   try {
     const aiResponse = await callGroqChat(messages, {
-      maxTokens: 512,
+      maxTokens: 500,
       temperature: 0.7,
     })
     const aiMessage = await sql`
-      INSERT INTO messages (chat_session_id, content, created_at, sender, enquiry_category)
-      VALUES (${chat_session_id}, ${aiResponse}, NOW(), 'ai', ${enquiryCategory})
+      INSERT INTO messages (chat_session_id, content, created_at, sender)
+      VALUES (${chat_session_id}, ${aiResponse}, NOW(), 'ai')
       RETURNING id
     `
 

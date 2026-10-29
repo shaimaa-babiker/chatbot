@@ -1,0 +1,2 @@
+ALTER TABLE public.chatbots
+  ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;

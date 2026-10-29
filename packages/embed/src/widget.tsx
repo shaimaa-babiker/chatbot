@@ -56,7 +56,7 @@ export default function AssistlyChat({
     async function loadChatbot() {
       try {
         const baseUrl = getApiBaseUrl(origin);
-        const response = await fetch(`${baseUrl}/api/chatbots/${chatbotId}`);
+        const response = await fetch(`${baseUrl}/api/chatbots/${chatbotId}/name`);
         const result = await readApiJson<{ name?: unknown; error?: unknown; widget_config?: Partial<WidgetConfig> }>(response);
         if (!response.ok) {
           throw new Error(

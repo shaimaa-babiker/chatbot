@@ -13,6 +13,10 @@ async function parseId(params: Context["params"]) {
 }
 
 export async function GET(_request: NextRequest, context: Context) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (await isEditorInvitee()) {
     return NextResponse.json(
       { error: "Editor invitees cannot manage chatbot settings" },
@@ -27,7 +31,11 @@ export async function GET(_request: NextRequest, context: Context) {
   try {
     const chatbots = await sql`
       SELECT id, name, created_at, widget_config
-      FROM chatbots WHERE id = ${chatbotId} LIMIT 1
+      FROM chatbots
+      WHERE id = ${chatbotId}
+        AND clerk_user_id = ${userId}
+        AND archived_at IS NULL
+      LIMIT 1
     `;
     if (!chatbots.length) {
       return NextResponse.json({ error: "Chatbot not found" }, { status: 404 });
@@ -39,10 +47,17 @@ export async function GET(_request: NextRequest, context: Context) {
       WHERE chatbot_id = ${chatbotId}
       ORDER BY created_at, id
     `;
+    const tags = await sql`
+      SELECT id, name, purpose, category
+      FROM chatbot_tags
+      WHERE chatbot_id = ${chatbotId} AND is_active = TRUE
+      ORDER BY created_at, id
+    `;
     return NextResponse.json({
       ...chatbot,
       widget_config: normalizeWidgetConfig(chatbot.widget_config),
       chatbot_characteristics: characteristics,
+      tags,
     });
   } catch (error) {
     console.error("[/api/chatbots] fetch failed", error);
@@ -79,18 +94,18 @@ export async function PATCH(request: NextRequest, context: Context) {
     const rows = name !== undefined && widgetConfig !== undefined
       ? await sql`
           UPDATE chatbots SET name = ${name}, widget_config = ${JSON.stringify(widgetConfig)}::jsonb
-          WHERE id = ${chatbotId} AND clerk_user_id = ${userId}
+          WHERE id = ${chatbotId} AND clerk_user_id = ${userId} AND archived_at IS NULL
           RETURNING id, name, created_at, widget_config
         `
       : name !== undefined
         ? await sql`
             UPDATE chatbots SET name = ${name}
-            WHERE id = ${chatbotId} AND clerk_user_id = ${userId}
+            WHERE id = ${chatbotId} AND clerk_user_id = ${userId} AND archived_at IS NULL
             RETURNING id, name, created_at, widget_config
           `
         : await sql`
             UPDATE chatbots SET widget_config = ${JSON.stringify(widgetConfig)}::jsonb
-            WHERE id = ${chatbotId} AND clerk_user_id = ${userId}
+            WHERE id = ${chatbotId} AND clerk_user_id = ${userId} AND archived_at IS NULL
             RETURNING id, name, created_at, widget_config
           `;
     if (!rows.length) {
@@ -121,8 +136,9 @@ export async function DELETE(_request: NextRequest, context: Context) {
 
   try {
     const rows = await sql`
-      DELETE FROM chatbots
+      UPDATE chatbots SET archived_at = COALESCE(archived_at, NOW())
       WHERE id = ${chatbotId} AND clerk_user_id = ${userId}
+        AND archived_at IS NULL
       RETURNING id
     `;
     if (!rows.length) {

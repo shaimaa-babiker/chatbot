@@ -30,7 +30,7 @@ export async function classifyEnquiry({
         }),
       },
     ],
-    { maxTokens: 64, temperature: 0 },
+    { maxTokens: 512, temperature: 0 },
   );
 
   const normalizedResult = result

@@ -6,6 +6,16 @@ export interface Chatbot {
     chatbot_characteristics:ChatbotCharacteristic[],
     chat_sessions:ChatSession[]
     messages:Message[]
+    tags?: ChatbotTag[]
+}
+
+export type ChatbotTagCategory = "product" | "service" | "opportunity"
+
+export interface ChatbotTag {
+    id:number,
+    name:string,
+    purpose:string,
+    category:ChatbotTagCategory
 }
 
 export interface ChatbotCharacteristic {
@@ -28,6 +38,8 @@ export interface ChatSession {
     created_at:string,
     guests:Guest | null
     messages:Message[]
+    tags?: string[]
+    categories?: ("product" | "service" | "opportunity")[]
 }
 
 export interface Message {
@@ -36,6 +48,8 @@ export interface Message {
     content:string,
     created_at:string,
     sender:"ai"|"user"
+    tags?: string[]
+    categories?: ("product" | "service" | "opportunity")[]
 }
 
 export interface GetChatbotByIdResponse {

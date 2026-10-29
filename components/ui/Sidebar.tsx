@@ -160,8 +160,8 @@ export default function Sidebar({ role }: { role?: Role }) {
 
   return (
     <>
-      <aside className="hidden lg:flex flex-shrink-0 w-64 px-2 py-2">
-        <nav className="h-full w-full flex flex-col gap-3 p-2 rounded-3xl bg-card/40 backdrop-blur-lg border border-border shadow-xl">
+      <aside className="sticky top-24 hidden h-[calc(100vh-6rem)] w-64 flex-shrink-0 self-start overflow-y-auto px-2 py-2 lg:flex">
+        <nav className="h-full w-full flex flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-card/40 p-2 shadow-xl backdrop-blur-lg">
           {visibleItems.map((item) => {
             const isActive = pathname === item.href
             return (

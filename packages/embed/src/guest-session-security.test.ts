@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
   getChatbot: vi.fn(),
   getSessionDetails: vi.fn(),
-  classifyEnquiry: vi.fn(),
+  applyConfiguredTagsToMessage: vi.fn(),
   callGroqChat: vi.fn(),
   callGroqChatStream: vi.fn(),
   sendAdminNewMessageDigest: vi.fn(),
@@ -32,8 +32,8 @@ vi.mock("@/lib/chatData", () => ({
   getChatbot: mocks.getChatbot,
   getSessionDetails: mocks.getSessionDetails,
 }));
-vi.mock("@/lib/enquiryClassification", () => ({
-  classifyEnquiry: mocks.classifyEnquiry,
+vi.mock("@/lib/messageTagging", () => ({
+  applyConfiguredTagsToMessage: mocks.applyConfiguredTagsToMessage,
 }));
 vi.mock("@/lib/groqPool", () => ({
   callGroqChat: mocks.callGroqChat,
@@ -242,12 +242,11 @@ describe("guest chat API authorization", () => {
     expect(mocks.getSessionDetails).not.toHaveBeenCalled();
   });
 
-  it("keeps message delivery working when valid-session classification fails", async () => {
+  it("keeps message delivery working when configured tagging fails", async () => {
     const capability = createGuestSessionCapability();
     mocks.sql
       .mockResolvedValueOnce([{ guest_capability_hash: capability.hash }])
       .mockResolvedValueOnce([{ id: 301 }])
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 302 }]);
     mocks.getSessionDetails.mockResolvedValue({
       id: 21,
@@ -261,7 +260,7 @@ describe("guest chat API authorization", () => {
       id: 6,
       chatbot_characteristics: [],
     });
-    mocks.classifyEnquiry.mockRejectedValue(new Error("classifier unavailable"));
+    mocks.applyConfiguredTagsToMessage.mockRejectedValue(new Error("tagger unavailable"));
     mocks.callGroqChat.mockResolvedValue("Assistant reply");
 
     const response = await sendMessage(

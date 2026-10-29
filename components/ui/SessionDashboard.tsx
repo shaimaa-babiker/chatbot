@@ -321,6 +321,20 @@ export default function SessionDashboard({ session, messages }: Props) {
                       </td>
                       <td className="px-3 md:px-4 py-3 whitespace-pre-wrap break-words">
                         {m.content}
+                        {((m.categories?.length ?? 0) > 0 || (m.tags?.length ?? 0) > 0) && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {(m.categories ?? []).map((category) => (
+                              <span key={category} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium capitalize text-blue-700">
+                                {category}
+                              </span>
+                            ))}
+                            {(m.tags ?? []).map((tag) => (
+                              <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )
@@ -362,6 +376,20 @@ export default function SessionDashboard({ session, messages }: Props) {
                   }`}
                 >
                   {m.content}
+                  {((m.categories?.length ?? 0) > 0 || (m.tags?.length ?? 0) > 0) && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(m.categories ?? []).map((category) => (
+                        <span key={category} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium capitalize text-blue-700">
+                          {category}
+                        </span>
+                      ))}
+                      {(m.tags ?? []).map((tag) => (
+                        <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="text-[10px] text-muted-foreground mt-1">
                     {timeFmt.format(new Date(m.created_at))}
                   </div>

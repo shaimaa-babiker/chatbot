@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Copy } from 'lucide-react';
 import { toast } from "sonner"
 import Avatar from '@/components/ui/Avatar';
-import { ChatbotCharacteristic } from '@/types/types';
+import { ChatbotCharacteristic, ChatbotTag } from '@/types/types';
 import Characteristics from '@/components/ui/Characteristics';
+import ChatbotTags from '@/components/ui/ChatbotTags';
 import { useRouter } from 'next/navigation';
 import { DEFAULT_WIDGET_CONFIG, FONT_FAMILIES, type WidgetConfig } from '@/lib/widgetConfig';
 
@@ -18,6 +19,7 @@ type EditableChatbot = {
   created_at: string;
   chatbot_characteristics: ChatbotCharacteristic[];
   widget_config: WidgetConfig;
+  tags: ChatbotTag[];
 };
 
 function page(props: { params: Promise<{ id: string }> }) {
@@ -151,31 +153,34 @@ if(!chatbot) {
 
   return (
     <div className='w-full max-w-5xl px-3 md:px-0'>
-<div className='md:sticky md:top-24 z-40 md:max-w-sm md:ml-auto space-y-2 rounded-b-lg md:rounded-lg mb-5 bg-[#2991EE] p-4 md:p-5 '>
-   <h2 className="text-white text-sm font-bold ">Link to Chat</h2>
-<p className="text-xs md:text-sm italic text-white">Share this link with your customers to start conversation with your chatbot</p>
-<div className='flex flex-col md:flex-row md:items-center md:space-x-2 space-y-2 md:space-y-0'>
-  <Link href = {url} className='w-full cursor-pointer hover:opacity-50'>
-  <Input value = {url} className='cursor-pointer text-black bg-white' readOnly />
-  </Link>
-  <Button
-  size={'sm'}
-  className='px-3 cursor-pointer self-start md:self-auto'
-  onClick={()=>{  navigator.clipboard.writeText(url);
-    toast.success("Copied to clipboard")
-  }}>
-    <span className='sr-only cursor-pointer '>Copy</span>
-<Copy className='w-4 h-4 cursor-pointer' />
-  </Button>
-</div>
-</div>
-
-  <section className='relative mt-5 p-4 md:p-10 rounded-lg'>
-    <Button variant={'destructive'} className='absolute right-2 top-2 h-8 px-3 text-xs'
-    onClick={()=> handleDelete(id)}
+  <div className='z-40 mb-5 rounded-lg border border-white/20 bg-[#2991EE] p-4 shadow-lg md:ml-auto md:max-w-sm md:p-5'>
+    <h2 className="text-white text-sm font-bold">Link to Chat</h2>
+    <p className="text-xs italic text-white md:text-sm">Share this link with your customers to start a conversation with your chatbot</p>
+    <div className='mt-2 flex flex-col space-y-2 md:flex-row md:items-center md:space-x-2 md:space-y-0'>
+      <Link href={url} className='w-full cursor-pointer hover:opacity-50'>
+        <Input value={url} className='cursor-pointer bg-white text-black' readOnly />
+      </Link>
+      <Button
+        size='sm'
+        className='cursor-pointer self-start px-3 md:self-auto'
+        onClick={() => {
+          navigator.clipboard.writeText(url)
+          toast.success("Copied to clipboard")
+        }}
+      >
+        <span className='sr-only'>Copy</span>
+        <Copy className='h-4 w-4' />
+      </Button>
+    </div>
+    <Button
+      variant='destructive'
+      className='mt-4 w-full'
+      onClick={() => handleDelete(id)}
     >
-    Delete
+      Delete chatbot
     </Button>
+  </div>
+  <section className='relative p-4 md:p-10 rounded-lg'>
     <div className='flex flex-col sm:flex-row sm:space-x-4 space-y-3 sm:space-y-0 pr-20'>
       <Avatar seed={chatbotName}/>
       <form className='flex flex-col sm:flex-row sm:flex-1 sm:space-x-2 space-y-2 sm:space-y-0 sm:items-center'
@@ -191,6 +196,50 @@ if(!chatbot) {
         <Button type='submit' className='cursor-pointer self-start sm:self-auto' disabled={!chatbotName}>Update</Button>
       </form>
     </div>
+    <h2 className="text-lg md:text-xl font-bold mt-8 md:mt-10 mb-1">Heres what your AI knows...</h2>
+    <p className='text-sm md:text-base'>Your chatbot is equipped with the following information to assist you in your conversations with your customers & users</p>
+
+    <div className='bg-card/40 backdrop-blur-lg border border-border shadow-xl p-4 md:p-10 rounded-md mt-5 md:mt-8'>
+      <form onSubmit={e=>{
+        e.preventDefault();
+        handleAddCharacteristic(newCharacteristic)
+        setNewCharacteristic("")
+      }}
+      className='flex flex-col md:flex-row mb-5 space-y-2 md:space-y-0 md:space-x-2 md:items-center'
+      >
+        <NewCharacteristicField
+          value={newCharacteristic}
+          onChange={setNewCharacteristic}
+        />
+        <Button type='submit' className='cursor-pointer self-start md:self-auto' disabled={!newCharacteristic}>Add</Button>
+        </form>
+        {chatbot.chatbot_characteristics?.length ? (
+          <div className='overflow-hidden rounded-md border border-gray-200 bg-white'>
+            <div className='flex items-center justify-between border-b border-gray-200 bg-gray-50/70 px-4 py-2'>
+              <h3 className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                Saved characteristics
+              </h3>
+              <span className='text-xs text-gray-500'>
+                {chatbot.chatbot_characteristics.length} total
+              </span>
+            </div>
+            <ul className='divide-y divide-gray-200'>
+              {chatbot.chatbot_characteristics.map((characteristic, idx) => (
+                <Characteristics
+                  key={characteristic.id}
+                  characteristics={characteristic}
+                  index={idx + 1}
+                />
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className='rounded-md border border-dashed border-gray-300 bg-white/50 px-4 py-6 text-center text-sm text-gray-500'>
+            No characteristics yet. Add one above to teach your chatbot how to respond.
+          </p>
+        )}
+    </div>
+    <ChatbotTags chatbotId={chatbot.id} initialTags={chatbot.tags ?? []} />
     <section className='mt-8 rounded-xl border border-gray-200 bg-white p-4 md:p-6'>
       <div className='mb-5'>
         <h2 className='text-lg font-bold'>Chat appearance</h2>
@@ -264,49 +313,6 @@ if(!chatbot) {
         </div>
       </form>
     </section>
-    <h2 className="text-lg md:text-xl font-bold mt-8 md:mt-10 mb-1">Heres what your AI knows...</h2>
-    <p className='text-sm md:text-base'>Your chatbot is equipped with the following information to assist you in your conversations with your customers & users</p>
-
-    <div className='bg-card/40 backdrop-blur-lg border border-border shadow-xl p-4 md:p-10 rounded-md mt-5 md:mt-8'>
-      <form onSubmit={e=>{
-        e.preventDefault();
-        handleAddCharacteristic(newCharacteristic)
-        setNewCharacteristic("")
-      }}
-      className='flex flex-col md:flex-row mb-5 space-y-2 md:space-y-0 md:space-x-2 md:items-center'
-      >
-        <NewCharacteristicField
-          value={newCharacteristic}
-          onChange={setNewCharacteristic}
-        />
-        <Button type='submit' className='cursor-pointer self-start md:self-auto' disabled={!newCharacteristic}>Add</Button>
-        </form>
-        {chatbot.chatbot_characteristics?.length ? (
-          <div className='overflow-hidden rounded-md border border-gray-200 bg-white'>
-            <div className='flex items-center justify-between border-b border-gray-200 bg-gray-50/70 px-4 py-2'>
-              <h3 className='text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                Saved characteristics
-              </h3>
-              <span className='text-xs text-gray-500'>
-                {chatbot.chatbot_characteristics.length} total
-              </span>
-            </div>
-            <ul className='divide-y divide-gray-200'>
-              {chatbot.chatbot_characteristics.map((characteristic, idx) => (
-                <Characteristics
-                  key={characteristic.id}
-                  characteristics={characteristic}
-                  index={idx + 1}
-                />
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className='rounded-md border border-dashed border-gray-300 bg-white/50 px-4 py-6 text-center text-sm text-gray-500'>
-            No characteristics yet. Add one above to teach your chatbot how to respond.
-          </p>
-        )}
-    </div>
   </section>
     </div>
   )

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const capability = createGuestSessionCapability();
     const rows = await sql`
       WITH valid_chatbot AS (
-        SELECT id FROM chatbots WHERE id = ${chatbot_id}
+        SELECT id FROM chatbots WHERE id = ${chatbot_id} AND archived_at IS NULL
       ),
       new_guest AS (
         INSERT INTO guests (created_at, email, name)

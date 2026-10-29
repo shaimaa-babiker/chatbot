@@ -66,7 +66,7 @@ describe('AssistlyChat', () => {
       );
     });
     const { container } = result!;
-    expect(fetch).toHaveBeenCalledWith('https://example.com/api/chatbots/42');
+    expect(fetch).toHaveBeenCalledWith('https://example.com/api/chatbots/42/name');
 
     // Header — use the name loaded from the chatbot API
     expect((await screen.findAllByText('Demo Chatbot')).length).toBeGreaterThan(0);
@@ -246,7 +246,7 @@ describe('AssistlyChat', () => {
           headers: { 'Content-Type': 'application/json' },
         });
 
-      if (url.endsWith('/api/chatbots/42')) {
+      if (url.endsWith('/api/chatbots/42/name')) {
         return jsonResponse({ name: 'Demo Chatbot' });
       }
       if (url.endsWith('/api/start-chat')) {

@@ -5,6 +5,22 @@ function asDateString(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function asLeadCategoryArray(
+  value: unknown,
+): ("product" | "service" | "opportunity")[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (category): category is "product" | "service" | "opportunity" =>
+      category === "product" ||
+      category === "service" ||
+      category === "opportunity",
+  );
+}
+
 function asMessage(row: Record<string, unknown>): Message {
   if (row.sender !== "ai" && row.sender !== "user") {
     throw new Error(`Unexpected message sender: ${String(row.sender)}`);
@@ -15,6 +31,8 @@ function asMessage(row: Record<string, unknown>): Message {
     content: String(row.content),
     created_at: asDateString(row.created_at),
     sender: row.sender,
+    tags: asStringArray(row.tags),
+    categories: asLeadCategoryArray(row.categories),
   };
 }
 
@@ -22,7 +40,7 @@ export async function getChatbot(chatbotId: number): Promise<Chatbot | null> {
   const rows = await sql`
     SELECT id, name, clerk_user_id, created_at
     FROM chatbots
-    WHERE id = ${chatbotId}
+    WHERE id = ${chatbotId} AND archived_at IS NULL
     LIMIT 1
   `;
   if (!rows.length) return null;
@@ -54,7 +72,7 @@ export async function getOwnedChatbots(userId: string): Promise<Chatbot[]> {
   const rows = await sql`
     SELECT id, name, clerk_user_id, created_at
     FROM chatbots
-    WHERE clerk_user_id = ${userId}
+    WHERE clerk_user_id = ${userId} AND archived_at IS NULL
     ORDER BY created_at DESC
   `;
   return attachSessions(rows);
@@ -68,18 +86,21 @@ export async function getReviewableChatbots(
     ? await sql`
         SELECT c.id, c.name, c.clerk_user_id, c.created_at
         FROM chatbots c
-        WHERE c.clerk_user_id = ${userId}
-           OR EXISTS (
-             SELECT 1 FROM admin_users a
-             WHERE a.owner_clerk_user_id = c.clerk_user_id
-               AND LOWER(a.invited_email) = ${email.trim().toLowerCase()}
-           )
+        WHERE c.archived_at IS NULL
+          AND (
+            c.clerk_user_id = ${userId}
+            OR EXISTS (
+              SELECT 1 FROM admin_users a
+              WHERE a.owner_clerk_user_id = c.clerk_user_id
+                AND LOWER(a.invited_email) = ${email.trim().toLowerCase()}
+            )
+          )
         ORDER BY c.created_at DESC
       `
     : await sql`
         SELECT id, name, clerk_user_id, created_at
         FROM chatbots
-        WHERE clerk_user_id = ${userId}
+        WHERE clerk_user_id = ${userId} AND archived_at IS NULL
         ORDER BY created_at DESC
       `;
   return attachSessions(rows);
@@ -90,7 +111,21 @@ async function attachSessions(chatbotRows: Record<string, unknown>[]): Promise<C
     const sessions = await sql`
       SELECT s.id, s.chatbot_id, s.guest_id, s.created_at,
         g.id AS joined_guest_id, g.name AS guest_name, g.email AS guest_email,
-        g.created_at AS guest_created_at
+        g.created_at AS guest_created_at,
+        COALESCE((
+          SELECT array_agg(DISTINCT t.name ORDER BY t.name)
+          FROM messages m
+          JOIN message_tags mt ON mt.message_id = m.id
+          JOIN chatbot_tags t ON t.id = mt.tag_id
+          WHERE m.chat_session_id = s.id
+        ), ARRAY[]::text[]) AS tags,
+        COALESCE((
+          SELECT array_agg(DISTINCT t.category ORDER BY t.category)
+          FROM messages m
+          JOIN message_tags mt ON mt.message_id = m.id
+          JOIN chatbot_tags t ON t.id = mt.tag_id
+          WHERE m.chat_session_id = s.id
+        ), ARRAY[]::text[]) AS categories
       FROM chat_sessions s
       LEFT JOIN guests g ON g.id = s.guest_id
       WHERE s.chatbot_id = ${Number(chatbot.id)}
@@ -115,6 +150,8 @@ async function attachSessions(chatbotRows: Record<string, unknown>[]): Promise<C
               email: session.guest_email === null ? null : String(session.guest_email),
             }
           : null,
+        tags: asStringArray(session.tags),
+        categories: asLeadCategoryArray(session.categories),
         messages: [],
       })),
       messages: [],
@@ -148,10 +185,15 @@ export async function getSessionDetails(sessionId: number): Promise<SessionDetai
 
   const row = rows[0];
   const messages = await sql`
-    SELECT id, chat_session_id, content, created_at, sender
-    FROM messages
-    WHERE chat_session_id = ${sessionId}
-    ORDER BY created_at, id
+    SELECT m.id, m.chat_session_id, m.content, m.created_at, m.sender,
+      COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.id IS NOT NULL), ARRAY[]::text[]) AS tags,
+      COALESCE(array_agg(DISTINCT t.category) FILTER (WHERE t.id IS NOT NULL), ARRAY[]::text[]) AS categories
+    FROM messages m
+    LEFT JOIN message_tags mt ON mt.message_id = m.id
+    LEFT JOIN chatbot_tags t ON t.id = mt.tag_id
+    WHERE m.chat_session_id = ${sessionId}
+    GROUP BY m.id, m.chat_session_id, m.content, m.created_at, m.sender
+    ORDER BY m.created_at, m.id
   `;
   return {
     id: Number(row.id),
